@@ -1,0 +1,10 @@
+.cursorrules
+venv/
+__pycache__/
+uploads/*
+static/*
+processed_frames/*
+mlx/
+.env
+.DS_Store
+weights/*
