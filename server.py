@@ -9,108 +9,104 @@ process uploaded videos and generate documentation based on the processed frames
 from flask import Flask, request, jsonify, send_from_directory
 import os
 import logging
-import time
 from video_processor import VideoProcessor
 from docs_generator import DocsGenerator
-from transformers import MllamaForConditionalGeneration, AutoProcessor
+import base64
 
-# Set up logging
+app = Flask(__name__)
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
-app = Flask(__name__)
-
-# Set up paths
 root_dir = os.path.dirname(os.path.abspath(__file__))
-logger.info(f"Root directory: {root_dir}")
-
-# Initialize AI model
-model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
-model_path = os.path.join(root_dir, 'weights', model_id)
-docs_generator = DocsGenerator(model_path)
+docs_generator = DocsGenerator(model_type='openai')
+processed_grids = []
 
 @app.route('/')
 def index():
-    """Serve the main HTML page."""
-    logger.info("Serving index.html")
     return send_from_directory('.', 'index.html')
 
 @app.route('/app.js')
 def serve_js():
-    """Serve the JavaScript file."""
-    logger.info("Serving app.js")
     return send_from_directory('.', 'app.js')
 
 @app.route('/process_video', methods=['POST'])
 def process_video():
-    """
-    Process the uploaded video.
-    
-    This function receives a video file, saves it, and then processes it using
-    the VideoProcessor class to generate frame grids.
-    """
+    global processed_grids
     logger.info("Received /process_video POST request")
     try:
+        if 'video' not in request.files:
+            logger.error("No video file in request")
+            return jsonify({"error": "No video file uploaded"}), 400
+
         video_file = request.files['video']
-        video_path = os.path.join(root_dir, 'uploads', video_file.filename)
+        if video_file.filename == '':
+            logger.error("No selected video file")
+            return jsonify({"error": "No selected video file"}), 400
+
+        frames_per_second = int(request.form.get('frames_per_second', 4))
+        is_uploaded_video = request.form.get('is_uploaded_video', 'false').lower() == 'true'
+        logger.info(f"Processing video with {frames_per_second} frames per second. Uploaded video: {is_uploaded_video}")
+
+        video_path = os.path.join(root_dir, 'uploads', 'video.webm')
         video_file.save(video_path)
         logger.info(f"Video saved to {video_path}")
 
         output_dir = os.path.join(root_dir, 'processed_frames')
         os.makedirs(output_dir, exist_ok=True)
 
-        logger.info("Starting video processing...")
-        video_processor = VideoProcessor(video_path, output_dir)
-        processed_frames = video_processor.process_video()
-        logger.info(f"Video processing completed. Generated {len(processed_frames)} frame grids.")
+        video_processor = VideoProcessor(video_path, output_dir, frames_per_second=frames_per_second)
+        
+        grid_paths = video_processor.process_video()
+        
+        logger.info(f"Created {len(grid_paths)} grid images")
 
-        return jsonify({"message": "Video processed successfully", "frames": processed_frames})
+        processed_grids = []
+        for i, grid_path in enumerate(grid_paths):
+            with open(grid_path, "rb") as image_file:
+                encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+            processed_grids.append({
+                'grid_number': i + 1,
+                'image': encoded_image
+            })
+
+        logger.info(f"Processed {len(processed_grids)} grids successfully")
+        return jsonify(processed_grids)
+
     except Exception as e:
         logger.error(f"Error in process_video: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/generate_docs', methods=['POST'])
-def generate_docs():
-    """
-    Generate documentation for a processed frame grid.
-    
-    This function receives information about a processed frame grid, loads the
-    corresponding image, and uses the DocsGenerator to create documentation.
-    """
-    logger.info("Received /generate_docs POST request")
+@app.route('/generate_documentation', methods=['POST'])
+def generate_documentation():
+    global processed_grids
+    logger.info("Received /generate_documentation POST request")
     try:
-        request_data = request.json
-        logger.info(f"Received request data: {request_data}")
-        
-        image_filename = request_data['image_path']
-        grid_index = request_data['grid_index']
-        
-        # Construct the full path to the image
-        image_path = os.path.join(root_dir, 'processed_frames', image_filename)
-        logger.info(f"Constructed image path: {image_path}")
-        
-        logger.info(f"Generating documentation for grid {grid_index}...")
-        documentation = docs_generator.generate_documentation(image_path, grid_index)
-        logger.info(f"Documentation generated for grid {grid_index}")
+        results = []
+        all_descriptions = []
+        for grid in processed_grids:
+            documentation = docs_generator.generate_documentation(f"processed_frames/grid_{grid['grid_number']}.jpg", grid['grid_number'])
+            results.append({
+                'grid_number': grid['grid_number'],
+                'documentation': documentation,
+                'image': grid['image']
+            })
+            all_descriptions.append(f"Grid {grid['grid_number']}: {documentation}")
 
-        return jsonify({"documentation": documentation})
+        logger.info(f"Generated documentation for {len(results)} grids successfully")
+
+        # Generate final summary
+        final_summary = docs_generator.generate_final_summary(all_descriptions)
+        logger.info("Generated final summary successfully")
+
+        return jsonify({
+            'grid_results': results,
+            'final_summary': final_summary
+        })
+
     except Exception as e:
-        logger.error(f"Error in generate_docs: {str(e)}", exc_info=True)
+        logger.error(f"Error in generate_documentation: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-@app.route('/processed_frames')
-def get_processed_frames():
-    """
-    Retrieve a list of processed frame grids.
-    
-    This function returns a list of filenames for all processed frame grids.
-    """
-    logger.info("Received request for processed frames")
-    output_dir = os.path.join(root_dir, 'processed_frames')
-    frames = [f for f in os.listdir(output_dir) if f.endswith('.jpg')]
-    frames.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
-    return jsonify(frames)
 
 if __name__ == '__main__':
     logger.info("Starting Flask server")

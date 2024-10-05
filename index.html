@@ -4,15 +4,108 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screen Recording Documentation Generator</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .button-group {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            padding: 10px 15px;
+            margin-right: 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        input[type="file"], input[type="number"] {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        #videoPreview, #uploadedVideo {
+            max-width: 100%;
+            margin-top: 20px;
+            border-radius: 3px;
+        }
+        #gridContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .grid-image {
+            max-width: 300px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        #results, #finalSummary {
+            margin-top: 20px;
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 3px;
+        }
+        .grid-container {
+            margin-bottom: 20px;
+        }
+        .grid-container img {
+            max-width: 100%;
+            border-radius: 3px;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
     <h1>Screen Recording Documentation Generator</h1>
-    <button id="startRecording">Start Recording</button>
-    <button id="stopRecording" disabled>Stop Recording</button>
-    <button id="generateDocumentation" disabled>Generate Documentation</button>
-    <div id="result"></div>
+    <div class="container">
+        <div class="button-group">
+            <button id="startRecording">Start Recording</button>
+            <button id="stopRecording" disabled>Stop Recording</button>
+        </div>
+        <div>
+            <label for="videoUpload">Or upload a video:</label>
+            <input type="file" id="videoUpload" accept="video/*">
+        </div>
+        <video id="videoPreview" controls></video>
+        <video id="uploadedVideo" controls></video>
+        <div class="button-group">
+            <label for="framesPerSecond">Frames per second:</label>
+            <input type="number" id="framesPerSecond" value="4" min="1" max="30">
+            <button id="processVideo" disabled>Process Video</button>
+        </div>
+        <div id="gridContainer"></div>
+        <button id="generateDocumentation" disabled>Generate Documentation</button>
+        <div id="results"></div>
+        <div id="finalSummary"></div>
+    </div>
 
     <script src="app.js"></script>
 </body>
