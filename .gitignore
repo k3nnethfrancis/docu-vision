@@ -8,3 +8,4 @@ mlx/
 .env
 .DS_Store
 weights/*
+temp_uploads/*
