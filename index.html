@@ -1,112 +1,75 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- 
+    index.html: Main HTML file for the Screen Recording Documentation Generator web application
+    This file defines the structure and layout of the user interface for processing videos
+    and generating documentation from screen recordings.
+-->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screen Recording Documentation Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/app.js" defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f4f4f4;
-        }
-        h1 {
-            color: #2c3e50;
-            text-align: center;
-        }
-        .container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .button-group {
-            margin-bottom: 20px;
-        }
-        button {
-            background-color: #3498db;
-            color: #fff;
-            border: none;
-            padding: 10px 15px;
-            margin-right: 10px;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        button:disabled {
-            background-color: #bdc3c7;
-            cursor: not-allowed;
-        }
-        input[type="file"], input[type="number"] {
-            margin-bottom: 10px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        #videoPreview, #uploadedVideo {
-            max-width: 100%;
-            margin-top: 20px;
-            border-radius: 3px;
-        }
+        /* 
+            CSS Styles for the application layout
+            These styles create a responsive grid layout for displaying processed video frames
+            and ensure proper spacing and sizing of UI elements.
+        */
         #gridContainer {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
             margin-top: 20px;
         }
-        .grid-image {
-            max-width: 300px;
-            border-radius: 3px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        .frame-item {
+            flex: 0 0 calc(25% - 7.5px);
+            max-width: calc(25% - 7.5px);
         }
-        #results, #finalSummary {
-            margin-top: 20px;
-            background-color: #ecf0f1;
-            padding: 15px;
-            border-radius: 3px;
+        .frame-item img {
+            width: 100%;
+            height: auto;
         }
-        .grid-container {
-            margin-bottom: 20px;
-        }
-        .grid-container img {
+        #videoPreview {
             max-width: 100%;
-            border-radius: 3px;
-            margin-bottom: 10px;
+            height: auto;
         }
     </style>
 </head>
-<body>
-    <h1>Screen Recording Documentation Generator</h1>
-    <div class="container">
-        <div class="button-group">
-            <button id="startRecording">Start Recording</button>
-            <button id="stopRecording" disabled>Stop Recording</button>
+<body class="container mt-5">
+    <h1 class="mb-4">Screen Recording Documentation Generator</h1>
+    
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h3>Upload Video</h3>
+            <input type="file" id="videoFile" accept="video/*" class="form-control mb-2">
+            <div id="uploadedVideoName" class="mb-2"></div>
         </div>
-        <div>
-            <label for="videoUpload">Or upload a video:</label>
-            <input type="file" id="videoUpload" accept="video/*">
+        <div class="col-md-6">
+            <h3>Record Screen</h3>
+            <button id="startRecording" class="btn btn-primary me-2">Start Recording</button>
+            <button id="stopRecording" class="btn btn-danger" disabled>Stop Recording</button>
         </div>
-        <video id="videoPreview" controls></video>
-        <video id="uploadedVideo" controls></video>
-        <div class="button-group">
-            <label for="framesPerSecond">Frames per second:</label>
-            <input type="number" id="framesPerSecond" value="4" min="1" max="30">
-            <button id="processVideo" disabled>Process Video</button>
-        </div>
-        <div id="gridContainer"></div>
-        <button id="generateDocumentation" disabled>Generate Documentation</button>
-        <div id="results"></div>
-        <div id="finalSummary"></div>
     </div>
-
-    <script src="app.js"></script>
+    
+    <div class="mb-3">
+        <label for="framesPerSecond" class="form-label">Frames per second:</label>
+        <input type="number" id="framesPerSecond" min="1" max="30" value="4" class="form-control">
+    </div>
+    
+    <button id="processVideoButton" class="btn btn-primary mb-3">Process Video</button>
+    
+    <div id="videoPreview" class="mb-3"></div>
+    
+    <div id="gridContainer"></div>
+    
+    <div id="documentationContainer" class="mt-4">
+        <h2>Generated Documentation</h2>
+        <button id="generateDocumentationButton" class="btn btn-success mb-3">Generate Documentation</button>
+        <div id="documentationOutput" class="border p-3 mb-3"></div>
+        <button id="downloadButton" class="btn btn-success" style="display: none;">Download README.md</button>
+    </div>
 </body>
 </html>

@@ -16,6 +16,7 @@ import base64
 import requests
 from dotenv import load_dotenv
 from openai import OpenAI
+import io  # Added import for BytesIO
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -86,41 +87,35 @@ class DocsGenerator:
         self.client = OpenAI(api_key=self.openai_api_key)
         logger.info("OpenAI API setup initialized successfully")
 
-    def generate_documentation(self, image_path, grid_index):
+    def generate_documentation(self, image_data, grid_index):
         """
         Generate documentation for a given image.
 
         Args:
-            image_path (str): Path to the image file.
+            image_data (bytes): The image data as bytes.
             grid_index (int): Index of the current grid in the series.
 
         Returns:
             str: Generated documentation for the image.
-
-        Raises:
-            FileNotFoundError: If the image file does not exist.
         """
         logger.info(f"Generating documentation for grid {grid_index}")
         start_time = time.time()
 
-        if not os.path.exists(image_path):
-            logger.error(f"Image file does not exist: {image_path}")
-            raise FileNotFoundError(f"Image file does not exist: {image_path}")
+        image = Image.open(io.BytesIO(image_data))
 
         if self.model_type == 'huggingface':
-            documentation = self._generate_huggingface(image_path, grid_index)
+            documentation = self._generate_huggingface(image, grid_index)
         else:  # OpenAI
-            documentation = self._generate_openai(image_path, grid_index)
+            documentation = self._generate_openai(image, grid_index)
 
         end_time = time.time()
         logger.info(f"Total analysis time for grid {grid_index}: {end_time - start_time:.2f} seconds")
 
         return documentation
 
-    def _generate_huggingface(self, image_path, grid_index):
+    def _generate_huggingface(self, image, grid_index):
         """Generate documentation using the HuggingFace model."""
-        logger.info(f"Attempting to open image at path: {image_path}")
-        image = Image.open(image_path)
+        logger.info(f"Attempting to open image at path: {image}")
         logger.info(f"Image opened successfully. Size: {image.size}, Mode: {image.mode}")
 
         prompt = self._create_prompt(grid_index)
@@ -150,10 +145,11 @@ class DocsGenerator:
 
         return processed_documentation
 
-    def _generate_openai(self, image_path, grid_index):
+    def _generate_openai(self, image, grid_index):
         """Generate documentation using the OpenAI Vision API."""
-        with open(image_path, "rb") as image_file:
-            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+        buffered = io.BytesIO()
+        image.save(buffered, format="JPEG")
+        base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
         prompt = self._create_prompt(grid_index)
 
@@ -310,15 +306,15 @@ class DocsGenerator:
         Grid Descriptions:
         {descriptions_text}
 
-        Please provide a clear, step-by-step summary of the entire process, highlighting key actions, 
-        transitions, and any significant observations. Your summary should give a reader a clear 
-        understanding of the workflow or task that was performed across the entire video.
+        Please ONLY include necessary information to create a documentation page of the process. 
+        The user could be running terminal commands or utilizing a GUI, it is important to note both.
+        The end state should be a document that another person or AI could read and understand the entire process well enough to execute it.
         """
 
     def _generate_openai_summary(self, prompt):
         """Generate final summary using the OpenAI API."""
         response = self.client.chat.completions.create(
-            model="gpt-4",  # You might want to use a more powerful model for this task
+            model="gpt-4o",  # You might want to use a more powerful model for this task
             messages=[
                 {
                     "role": "user",

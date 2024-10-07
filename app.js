@@ -7,237 +7,244 @@
 
 let mediaRecorder;
 let recordedChunks = [];
-let videoBlob = null;
-let isUploadedVideo = false;
+let processedGrids = [];
 
-document.getElementById('startRecording').addEventListener('click', startRecording);
-document.getElementById('stopRecording').addEventListener('click', stopRecording);
-document.getElementById('videoUpload').addEventListener('change', handleVideoUpload);
-document.getElementById('processVideo').addEventListener('click', processVideo);
-document.getElementById('generateDocumentation').addEventListener('click', generateDocumentation);
+document.addEventListener('DOMContentLoaded', function() {
+    const videoFile = document.getElementById('videoFile');
+    const processVideoButton = document.getElementById('processVideoButton');
+    const framesPerSecondInput = document.getElementById('framesPerSecond');
+    const startRecordingButton = document.getElementById('startRecording');
+    const stopRecordingButton = document.getElementById('stopRecording');
+    const generateDocumentationButton = document.getElementById('generateDocumentationButton');
 
-/**
- * Starts the screen recording process.
- * 
- * This function requests screen capture permission from the user,
- * sets up the MediaRecorder, and begins recording.
- */
+    if (videoFile) {
+        videoFile.addEventListener('change', handleVideoFileChange);
+    }
+
+    if (processVideoButton) {
+        processVideoButton.addEventListener('click', processVideo);
+    }
+
+    if (framesPerSecondInput) {
+        framesPerSecondInput.addEventListener('input', validateFramesPerSecond);
+    }
+
+    if (startRecordingButton) {
+        startRecordingButton.addEventListener('click', startRecording);
+    }
+
+    if (stopRecordingButton) {
+        stopRecordingButton.addEventListener('click', stopRecording);
+    }
+
+    if (generateDocumentationButton) {
+        generateDocumentationButton.addEventListener('click', generateDocumentation);
+    }
+});
+
 async function startRecording() {
-    console.log("startRecording function called");
+    console.log('Start recording function called');
     try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        console.log("Display media stream obtained");
-        mediaRecorder = new MediaRecorder(stream);
-
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: { mediaSource: "screen" } });
+        console.log('Display media obtained:', stream);
+        
+        // Use H264 codec for MP4 output
+        const options = {mimeType: 'video/webm;codecs=h264'};
+        mediaRecorder = new MediaRecorder(stream, options);
+        
         mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 recordedChunks.push(event.data);
-                console.log(`Chunk added. Total chunks: ${recordedChunks.length}, Chunk size: ${event.data.size} bytes`);
+                console.log('Data chunk added, size:', event.data.size);
             }
         };
 
-        mediaRecorder.onstart = () => {
-            console.log("MediaRecorder started at", new Date().toISOString());
-            recordedChunks = []; // Clear any previous recording
-            isUploadedVideo = false;
-        };
+        mediaRecorder.onstop = handleRecordingStop;
 
-        mediaRecorder.onstop = () => {
-            console.log("MediaRecorder stopped at", new Date().toISOString());
-            videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
-            console.log(`Recording completed. Total size: ${videoBlob.size} bytes`);
-            displayVideo(videoBlob, 'videoPreview');
-            document.getElementById('processVideo').disabled = false;
-        };
-
-        mediaRecorder.start(1000); // Collect data every second
+        mediaRecorder.start();
+        console.log('MediaRecorder started');
         document.getElementById('startRecording').disabled = true;
         document.getElementById('stopRecording').disabled = false;
-        console.log("Recording started successfully");
     } catch (error) {
         console.error("Error starting recording:", error);
-        alert("Error starting recording. Please make sure you've granted screen capture permissions.");
+        alert("Error starting recording. Please make sure you've granted screen capture permissions and your browser supports H264 encoding.");
     }
 }
 
-/**
- * Stops the ongoing screen recording.
- * 
- * This function stops the MediaRecorder and enables the generate documentation button.
- */
 function stopRecording() {
-    console.log("stopRecording function called");
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
         document.getElementById('startRecording').disabled = false;
         document.getElementById('stopRecording').disabled = true;
-        console.log("Recording stopped. Total recorded chunks:", recordedChunks.length);
-    } else {
-        console.log("No active recording to stop");
     }
 }
 
-/**
- * Handles the video upload event.
- * 
- * @param {Event} event - The change event triggered by the file input.
- */
-function handleVideoUpload(event) {
+function handleRecordingStop() {
+    console.log('Recording stopped, chunks:', recordedChunks.length);
+    const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+    console.log('Blob created, size:', blob.size, 'type:', blob.type);
+    recordedChunks = [];
+    displayRecordedVideo(blob);
+}
+
+function displayRecordedVideo(blob) {
+    const videoURL = URL.createObjectURL(blob);
+    const videoElement = document.createElement('video');
+    videoElement.src = videoURL;
+    videoElement.controls = true;
+    videoElement.style.maxWidth = '100%';
+
+    videoElement.onloadedmetadata = () => {
+        console.log('Video metadata loaded:',
+            'Duration:', videoElement.duration,
+            'Width:', videoElement.videoWidth,
+            'Height:', videoElement.videoHeight);
+    };
+
+    const videoPreview = document.getElementById('videoPreview');
+    videoPreview.innerHTML = '';
+    videoPreview.appendChild(videoElement);
+
+    const uploadedVideoName = document.getElementById('uploadedVideoName');
+    uploadedVideoName.textContent = 'Recorded Video: screen-recording.mp4';
+
+    // Create a new File object
+    const videoFile = new File([blob], 'screen-recording.mp4', { type: 'video/mp4' });
+    console.log('File created:', videoFile.name, 'size:', videoFile.size, 'type:', videoFile.type);
+
+    // Create a new FileList containing this File
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(videoFile);
+
+    // Set the files property of the input element
+    document.getElementById('videoFile').files = dataTransfer.files;
+}
+
+function handleVideoFileChange(event) {
     const file = event.target.files[0];
     if (file) {
-        console.log(`Video file uploaded: ${file.name}, Size: ${file.size} bytes`);
-        videoBlob = file;
-        isUploadedVideo = true;
-        displayVideo(file, 'uploadedVideo');
-        document.getElementById('processVideo').disabled = false;
+        const uploadedVideoName = document.getElementById('uploadedVideoName');
+        uploadedVideoName.textContent = `Uploaded Video: ${file.name}`;
+        previewVideo(file);
     }
 }
 
-/**
- * Displays the video in the specified video element.
- * 
- * @param {Blob} videoFile - The video file to display.
- * @param {string} videoElementId - The ID of the video element.
- */
-function displayVideo(videoFile, videoElementId) {
-    const videoURL = URL.createObjectURL(videoFile);
-    const videoElement = document.getElementById(videoElementId);
-    videoElement.src = videoURL;
-    videoElement.style.display = 'block';
-    console.log(`Video displayed in ${videoElementId}`);
+function previewVideo(file) {
+    const videoPreview = document.getElementById('videoPreview');
+    if (videoPreview) {
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.controls = true;
+        video.style.maxWidth = '100%';
+        videoPreview.innerHTML = '';
+        videoPreview.appendChild(video);
+    } else {
+        console.error('Video preview container not found');
+    }
 }
 
-/**
- * Processes the video for documentation generation.
- * 
- * This function sends the video to the server for processing,
- * then displays the processed frames.
- */
-async function processVideo() {
-    console.log("processVideo function called");
-    if (!videoBlob) {
-        console.error("No video to process");
-        alert("Please record or upload a video before processing.");
-        return;
-    }
-
+function processVideo() {
+    const videoFile = document.getElementById('videoFile').files[0];
+    const framesPerSecond = document.getElementById('framesPerSecond').value;
     const formData = new FormData();
-    formData.append('video', videoBlob, 'video.webm');
-    const framesPerSecond = document.getElementById('framesPerSecond').value || 4;
-    formData.append('frames_per_second', framesPerSecond);
-    formData.append('is_uploaded_video', isUploadedVideo);
 
-    console.log(`Processing video. Size: ${videoBlob.size} bytes, Frames per second: ${framesPerSecond}, Is uploaded: ${isUploadedVideo}`);
-
-    try {
-        console.log("Sending video to server for processing...");
-        const response = await fetch('/process_video', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const results = await response.json();
-        console.log("Received processed frames from server:", results);
-        if (results.error) {
-            throw new Error(results.error);
-        }
-        displayGrids(results);
-        document.getElementById('generateDocumentation').disabled = false;
-    } catch (error) {
-        console.error('Error processing video:', error);
-        alert('Error processing video. Please check the console for details.');
+    if (videoFile) {
+        formData.append('video', videoFile);
+    } else {
+        const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+        formData.append('video', blob, 'screen-recording.mp4');
     }
+
+    formData.append('frames_per_second', framesPerSecond);
+
+    fetch('/process_video', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            displayProcessedFrames(data.frames);
+            alert(`Video processed successfully. Created ${data.video_info.grids_created} grid images from ${data.video_info.extracted_frames} frames.`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while processing the video.');
+    });
 }
 
-/**
- * Displays the processed grids.
- * 
- * @param {Array} grids - An array of objects containing grid images.
- */
-function displayGrids(grids) {
+function displayProcessedFrames(frames) {
     const gridContainer = document.getElementById('gridContainer');
     gridContainer.innerHTML = '';
-    grids.forEach((grid, index) => {
-        const img = document.createElement('img');
-        img.src = `data:image/jpeg;base64,${grid.image}`;
-        img.alt = `Grid ${index + 1}`;
-        img.className = 'grid-image';
-        gridContainer.appendChild(img);
+    frames.forEach((frame, index) => {
+        const frameElement = document.createElement('div');
+        frameElement.className = 'frame-item';
+        frameElement.innerHTML = `
+            <img src="data:image/jpeg;base64,${frame.image}" alt="Frame ${frame.frame_number}" class="img-fluid">
+            <p class="mt-2">Frame ${frame.frame_number}</p>
+        `;
+        gridContainer.appendChild(frameElement);
     });
-    console.log(`Displayed ${grids.length} grid images`);
 }
 
-/**
- * Generates documentation based on the processed video.
- * 
- * This function sends a request to the server for documentation generation,
- * then displays the results.
- */
-async function generateDocumentation() {
-    console.log("generateDocumentation function called");
-    try {
-        const response = await fetch('/generate_documentation', {
-            method: 'POST'
-        });
-
+function generateDocumentation() {
+    const documentationOutput = document.getElementById('documentationOutput');
+    const downloadButton = document.getElementById('downloadButton');
+    
+    documentationOutput.innerHTML = 'Generating documentation...';
+    downloadButton.style.display = 'none';
+    
+    fetch('/generate_documentation', {
+        method: 'POST',
+    })
+    .then(response => {
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            return response.json().then(data => {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            });
         }
-
-        const results = await response.json();
-        console.log("Received documentation from server:", results);
-        displayResults(results.grid_results);
-        displayFinalSummary(results.final_summary);
-    } catch (error) {
-        console.error('Error generating documentation:', error);
-        alert('Error generating documentation. Please check the console for details.');
-    }
-}
-
-/**
- * Displays the results of the documentation generation.
- * 
- * @param {Array} results - An array of objects containing grid images and their documentation.
- */
-function displayResults(results) {
-    console.log("Displaying results:", results);
-    const resultsContainer = document.getElementById('results');
-    resultsContainer.innerHTML = '';
-
-    if (!Array.isArray(results) || results.length === 0) {
-        resultsContainer.innerHTML = '<p>No results to display. Please try again.</p>';
-        return;
-    }
-
-    results.forEach(result => {
-        const gridContainer = document.createElement('div');
-        gridContainer.className = 'grid-container';
-
-        const image = document.createElement('img');
-        image.src = `data:image/jpeg;base64,${result.image}`;
-        image.alt = `Grid ${result.grid_number}`;
-        image.className = 'grid-image';
-
-        const documentation = document.createElement('p');
-        documentation.textContent = result.documentation;
-
-        gridContainer.appendChild(image);
-        gridContainer.appendChild(documentation);
-        resultsContainer.appendChild(gridContainer);
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        } else {
+            documentationOutput.innerHTML = marked.parse(data.documentation);
+            downloadButton.style.display = 'inline-block';
+            downloadButton.onclick = () => downloadMarkdown(data.documentation);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        documentationOutput.innerHTML = `An error occurred while generating documentation: ${error.message}`;
     });
 }
 
-function displayFinalSummary(summary) {
-    console.log("Displaying final summary");
-    const summaryContainer = document.getElementById('finalSummary');
-    summaryContainer.innerHTML = '<h2>Final Process Summary</h2>';
-    const summaryText = document.createElement('p');
-    summaryText.textContent = summary;
-    summaryContainer.appendChild(summaryText);
+function downloadMarkdown(content) {
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'README.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function validateFramesPerSecond() {
+    const framesPerSecond = document.getElementById('framesPerSecond');
+    if (framesPerSecond) {
+        const value = parseInt(framesPerSecond.value);
+        if (isNaN(value) || value < 1 || value > 30) {
+            framesPerSecond.setCustomValidity('Please enter a number between 1 and 30');
+        } else {
+            framesPerSecond.setCustomValidity('');
+        }
+    }
 }
 
 console.log("app.js loaded and initialized");
